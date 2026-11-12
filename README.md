@@ -42,7 +42,9 @@ against 16.11.
 
 ### 1. Install
 
-No published package yet — install from source:
+No published package yet — install from source. Needs **Node 22.22.2 or newer**
+(see [Node version](#node-version)); with fnm, nodenv or asdf installed, the
+repository's `.node-version` selects it for you.
 
 ```sh
 git clone git@github.com:lin-stephen/raycast-gitlab-quick.git
@@ -121,6 +123,23 @@ use `ray develop` or **Import Extension** for that the first time.
 
 Requires Raycast 2.x. `@raycast/api` tracks the app version, so keep the dependency
 in step with the Raycast you are running.
+
+### Node version
+
+`@raycast/api` requires **Node 22.22.2 or newer**. That floor is recorded in two
+places, and they serve different readers:
+
+| Where | What it does |
+| --- | --- |
+| `.node-version` | Pins the major (`24`) for your shell. Version managers that read it on `cd` — fnm, nodenv, asdf — switch automatically, so the project does not follow whatever your global default happens to be. `actions/setup-node` reads the same file via `node-version-file`, so CI matches your machine. |
+| `engines.node` in `package.json` | States the real constraint (`>=22.22.2`) for npm and for anyone reading the manifest. fnm also falls back to it when no `.node-version` is present. |
+
+The file pins a bare major rather than an exact patch, so security patches are
+picked up without the file going stale. The lockfile is what pins the dependency
+tree.
+
+Both govern development and CI only — Raycast executes the installed extension in
+its own managed runtime, which these files do not control.
 
 ## Troubleshooting
 
