@@ -1,0 +1,92 @@
+{
+  "$schema": "https://www.raycast.com/schemas/extension.json",
+  "name": "gitlab-quick",
+  "title": "GitLab Quick",
+  "description": "Jump straight to a repo or its CI pipelines on a self-hosted GitLab.",
+  "icon": "command-icon.png",
+  "author": "stephen_lin",
+  "categories": [
+    "Developer Tools"
+  ],
+  "license": "MIT",
+  "commands": [
+    {
+      "name": "repo",
+      "title": "Open GitLab Repo",
+      "subtitle": "GitLab",
+      "description": "Search projects and open the repository page.",
+      "mode": "view",
+      "arguments": [
+        {
+          "name": "query",
+          "placeholder": "casa",
+          "type": "text",
+          "required": false
+        }
+      ]
+    },
+    {
+      "name": "pipeline",
+      "title": "Open GitLab Pipelines",
+      "subtitle": "GitLab",
+      "description": "Search projects and open the CI/CD pipelines page.",
+      "mode": "view",
+      "arguments": [
+        {
+          "name": "query",
+          "placeholder": "casa",
+          "type": "text",
+          "required": false
+        }
+      ]
+    }
+  ],
+  "preferences": [
+    {
+      "name": "instance",
+      "title": "GitLab URL",
+      "description": "Base URL of your on-prem GitLab, e.g. https://gitlab.example.com",
+      "type": "textfield",
+      "required": true,
+      "placeholder": "https://gitlab.example.com"
+    },
+    {
+      "name": "token",
+      "title": "Personal Access Token",
+      "description": "GitLab personal access token with the read_api scope.",
+      "type": "password",
+      "required": true
+    },
+    {
+      "name": "membershipOnly",
+      "title": "Scope",
+      "label": "Only projects I'm a member of",
+      "description": "Restrict search to projects you belong to.",
+      "type": "checkbox",
+      "required": false,
+      "default": false
+    }
+  ],
+  "dependencies": {
+    "@raycast/api": "^2.11.1",
+    "@raycast/utils": "^2.3.3"
+  },
+  "devDependencies": {
+    "@raycast/eslint-config": "^2.0.4",
+    "@types/node": "^22.13.10",
+    "@types/react": "^19.0.10",
+    "eslint": "^9.22.0",
+    "prettier": "^3.5.3",
+    "typescript": "^5.8.2"
+  },
+  "scripts": {
+    "build": "ray build",
+    "dev": "ray develop",
+    "lint": "ray lint",
+    "fix-lint": "ray lint --fix",
+    "publish": "npx @raycast/api@latest publish"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true
+  }
+}
