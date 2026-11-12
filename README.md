@@ -87,7 +87,7 @@ With a project selected:
 | <kbd>Cmd</kbd> <kbd>Shift</kbd> <kbd>I</kbd> | Issues |
 | <kbd>Cmd</kbd> <kbd>Shift</kbd> <kbd>J</kbd> | Jobs |
 | <kbd>Cmd</kbd> <kbd>Shift</kbd> <kbd>B</kbd> | Branches |
-| <kbd>Cmd</kbd> <kbd>.</kbd> | Copy project URL |
+| <kbd>Cmd</kbd> <kbd>Shift</kbd> <kbd>C</kbd> | Copy project URL |
 | <kbd>Cmd</kbd> <kbd>Shift</kbd> <kbd>.</kbd> | Copy SSH clone URL |
 
 Each row shows the full namespace path and the last activity date, so near-identical

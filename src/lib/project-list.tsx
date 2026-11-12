@@ -1,19 +1,28 @@
-import { Action, ActionPanel, Icon, List, open } from "@raycast/api";
+import { Action, ActionPanel, Icon, Keyboard, List, open } from "@raycast/api";
 import { useFetch } from "@raycast/utils";
 import { useState } from "react";
 import { links, prefs, Project, searchUrl } from "./gitlab";
 
 type Target = "repo" | "pipelines";
 
-export function ProjectList({ initialQuery = "", target }: { initialQuery?: string; target: Target }) {
+export function ProjectList({
+  initialQuery = "",
+  target,
+}: {
+  initialQuery?: string;
+  target: Target;
+}) {
   const [searchText, setSearchText] = useState(initialQuery);
   const { instance, token, membershipOnly } = prefs();
 
-  const { isLoading, data, error } = useFetch<Project[]>(searchUrl(instance, searchText, membershipOnly), {
-    headers: { "PRIVATE-TOKEN": token, Accept: "application/json" },
-    keepPreviousData: true,
-    initialData: [],
-  });
+  const { isLoading, data, error } = useFetch<Project[]>(
+    searchUrl(instance, searchText, membershipOnly),
+    {
+      headers: { "PRIVATE-TOKEN": token, Accept: "application/json" },
+      keepPreviousData: true,
+      initialData: [],
+    },
+  );
 
   const toPipelines = target === "pipelines";
   const primary = toPipelines ? links.pipelines : links.repo;
@@ -26,7 +35,11 @@ export function ProjectList({ initialQuery = "", target }: { initialQuery?: stri
   const items = projects.map((project) => (
     <List.Item
       key={project.id}
-      icon={project.avatar_url ? { source: project.avatar_url, fallback: Icon.Folder } : Icon.Folder}
+      icon={
+        project.avatar_url
+          ? { source: project.avatar_url, fallback: Icon.Folder }
+          : Icon.Folder
+      }
       title={project.name}
       subtitle={project.path_with_namespace}
       accessories={[
@@ -36,11 +49,14 @@ export function ProjectList({ initialQuery = "", target }: { initialQuery?: stri
       actions={
         <ActionPanel>
           <ActionPanel.Section>
-            <Action title={primaryTitle} icon={toPipelines ? Icon.Rocket : Icon.Code} onAction={() => open(primary(project))} />
+            <Action
+              title={primaryTitle}
+              icon={toPipelines ? Icon.Rocket : Icon.Code}
+              onAction={() => open(primary(project))}
+            />
             <Action
               title={secondaryTitle}
               icon={toPipelines ? Icon.Code : Icon.Rocket}
-              shortcut={{ modifiers: ["cmd"], key: "enter" }}
               onAction={() => open(secondary(project))}
             />
           </ActionPanel.Section>
@@ -74,7 +90,7 @@ export function ProjectList({ initialQuery = "", target }: { initialQuery?: stri
             <Action.CopyToClipboard
               title="Copy Project URL"
               content={project.web_url}
-              shortcut={{ modifiers: ["cmd"], key: "." }}
+              shortcut={Keyboard.Shortcut.Common.Copy}
             />
             <Action.CopyToClipboard
               title="Copy SSH Clone URL"
@@ -93,7 +109,11 @@ export function ProjectList({ initialQuery = "", target }: { initialQuery?: stri
       filtering={false}
       searchText={searchText}
       onSearchTextChange={setSearchText}
-      searchBarPlaceholder={toPipelines ? "Search projects to open pipelines…" : "Search GitLab projects…"}
+      searchBarPlaceholder={
+        toPipelines
+          ? "Search projects to open pipelines…"
+          : "Search GitLab projects…"
+      }
       throttle
     >
       {error ? (
@@ -105,7 +125,13 @@ export function ProjectList({ initialQuery = "", target }: { initialQuery?: stri
       ) : items.length === 0 ? (
         <List.EmptyView
           icon={Icon.MagnifyingGlass}
-          title={isLoading ? "Searching…" : searchText ? "No matching projects" : "Type to search your GitLab"}
+          title={
+            isLoading
+              ? "Searching…"
+              : searchText
+                ? "No matching projects"
+                : "Type to search your GitLab"
+          }
         />
       ) : (
         items

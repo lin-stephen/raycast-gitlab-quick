@@ -26,7 +26,11 @@ export function prefs(): Prefs {
 }
 
 /** Project search endpoint. Empty query -> most recently active projects. */
-export function searchUrl(instance: string, query: string, membershipOnly: boolean): string {
+export function searchUrl(
+  instance: string,
+  query: string,
+  membershipOnly: boolean,
+): string {
   const params = new URLSearchParams({
     per_page: "30",
     order_by: "last_activity_at",
