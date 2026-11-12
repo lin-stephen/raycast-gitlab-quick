@@ -24,6 +24,18 @@ Leave the argument empty to browse your most recently active projects instead.
 Matching runs server-side against GitLab's project search with `search_namespaces`
 enabled, so a group name matches too.
 
+### Pipeline status
+
+**Open GitLab Pipelines** shows the latest pipeline for each project inline — a
+coloured marker for the status and the branch it ran on — so you can see whether a
+build is broken without opening anything. <kbd>Cmd</kbd> <kbd>L</kbd> jumps straight
+to that pipeline rather than the pipelines index.
+
+Statuses are a second round of API calls, one per project, so they are fetched only
+for this command and only for the first 20 results, at most 6 requests in flight.
+Projects with pipelines disabled, or that your token cannot read pipelines for,
+simply show no status.
+
 ## Setup
 
 ### 1. Install
@@ -83,6 +95,7 @@ With a project selected:
 | --- | --- |
 | <kbd>Enter</kbd> | Open the command's primary target (repo, or pipelines) |
 | <kbd>Cmd</kbd> <kbd>Enter</kbd> | Open the other one |
+| <kbd>Cmd</kbd> <kbd>L</kbd> | Open the latest pipeline directly (`pl` only) |
 | <kbd>Cmd</kbd> <kbd>Shift</kbd> <kbd>M</kbd> | Merge requests |
 | <kbd>Cmd</kbd> <kbd>Shift</kbd> <kbd>I</kbd> | Issues |
 | <kbd>Cmd</kbd> <kbd>Shift</kbd> <kbd>J</kbd> | Jobs |
