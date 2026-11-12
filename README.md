@@ -21,8 +21,8 @@ Pick one and it opens in your browser.
 
 Leave the argument empty to browse your most recently active projects instead.
 
-Matching runs server-side against GitLab's project search with `search_namespaces`
-enabled, so a group name matches too.
+Matching runs server-side against GitLab's project search, so a fragment of the
+name is enough.
 
 ### Pipeline status
 
@@ -31,10 +31,12 @@ coloured marker for the status and the branch it ran on — so you can see wheth
 build is broken without opening anything. <kbd>Cmd</kbd> <kbd>L</kbd> jumps straight
 to that pipeline rather than the pipelines index.
 
-Statuses are a second round of API calls, one per project, so they are fetched only
-for this command and only for the first 20 results, at most 6 requests in flight.
-Projects with pipelines disabled, or that your token cannot read pipelines for,
-simply show no status.
+Search and statuses arrive together in a **single GraphQL request** to
+`/api/graphql`, so the status is there as soon as the list is, rather than trickling
+in per project. A project with no pipelines simply shows no status.
+
+This needs GitLab's GraphQL API, generally available since **13.0**. Developed
+against 16.11.
 
 ## Setup
 

@@ -7,20 +7,13 @@ import {
   List,
   open,
 } from "@raycast/api";
-import { useFetch, usePromise } from "@raycast/utils";
+import { usePromise } from "@raycast/utils";
 import { useRef, useState } from "react";
-import {
-  fetchLatestPipelines,
-  links,
-  Pipeline,
-  prefs,
-  Project,
-  searchUrl,
-} from "./gitlab";
+import { fetchProjects, links, Pipeline, prefs, Project } from "./gitlab";
 
 type Target = "repo" | "pipelines";
 
-/** GitLab's pipeline statuses, mapped to something glanceable. */
+/** GitLab's PipelineStatusEnum, mapped to something glanceable. Keys are lowercased. */
 const PIPELINE_UI: Record<string, { icon: Icon; color: Color; label: string }> =
   {
     success: { icon: Icon.CheckCircle, color: Color.Green, label: "passed" },
@@ -40,6 +33,11 @@ const PIPELINE_UI: Record<string, { icon: Icon; color: Color; label: string }> =
     },
     manual: { icon: Icon.Play, color: Color.Purple, label: "manual" },
     scheduled: { icon: Icon.Calendar, color: Color.Purple, label: "scheduled" },
+    canceling: {
+      icon: Icon.MinusCircle,
+      color: Color.SecondaryText,
+      label: "canceling",
+    },
     canceled: {
       icon: Icon.MinusCircle,
       color: Color.SecondaryText,
@@ -49,10 +47,11 @@ const PIPELINE_UI: Record<string, { icon: Icon; color: Color; label: string }> =
   };
 
 function pipelineAccessory(pipeline: Pipeline): List.Item.Accessory {
-  const ui = PIPELINE_UI[pipeline.status] ?? {
+  const status = pipeline.status.toLowerCase();
+  const ui = PIPELINE_UI[status] ?? {
     icon: Icon.QuestionMark,
     color: Color.SecondaryText,
-    label: pipeline.status,
+    label: status,
   };
   return {
     icon: { source: ui.icon, tintColor: ui.color },
@@ -71,36 +70,20 @@ export function ProjectList({
   const [searchText, setSearchText] = useState(initialQuery);
   const { instance, token, membershipOnly } = prefs();
   const abortable = useRef<AbortController>(null);
-
-  const { isLoading, data, error } = useFetch<Project[]>(
-    searchUrl(instance, searchText, membershipOnly),
-    {
-      headers: { "PRIVATE-TOKEN": token, Accept: "application/json" },
-      keepPreviousData: true,
-      initialData: [],
-    },
-  );
-
   const toPipelines = target === "pipelines";
-  const projects = data ?? [];
 
-  // Statuses are a second round trip, so they only run where they earn their keep:
-  // the pipelines command. The key keeps the request from refiring on every render.
-  const projectIds = projects.map((p) => p.id);
-  const idKey = projectIds.join(",");
-
-  const { data: pipelines } = usePromise(
-    async (key: string) => {
-      if (!key) return {} as Record<number, Pipeline | null>;
-      return fetchLatestPipelines(
+  const { isLoading, data, error } = usePromise(
+    async (search: string, withPipelines: boolean) =>
+      fetchProjects(
         instance,
         token,
-        key.split(",").map(Number),
+        search,
+        membershipOnly,
+        withPipelines,
         abortable.current?.signal,
-      );
-    },
-    [idKey],
-    { execute: toPipelines && idKey.length > 0, abortable },
+      ),
+    [searchText, toPipelines],
+    { abortable, keepPreviousData: true },
   );
 
   const primary = toPipelines ? links.pipelines : links.repo;
@@ -108,24 +91,20 @@ export function ProjectList({
   const primaryTitle = toPipelines ? "Open Pipelines" : "Open Repository";
   const secondaryTitle = toPipelines ? "Open Repository" : "Open Pipelines";
 
-  const items = projects.map((project) => {
-    const pipeline = pipelines?.[project.id] ?? null;
+  const items = (data ?? []).map((project: Project) => {
+    const pipeline = project.pipeline;
 
     return (
       <List.Item
-        key={project.id}
-        icon={
-          project.avatar_url
-            ? { source: project.avatar_url, fallback: Icon.Folder }
-            : Icon.Folder
-        }
+        key={project.fullPath}
+        icon={Icon.Folder}
         title={project.name}
-        subtitle={project.path_with_namespace}
+        subtitle={project.fullPath}
         accessories={[
           ...(project.archived ? [{ tag: "archived" }] : []),
           ...(pipeline ? [pipelineAccessory(pipeline)] : []),
           {
-            date: new Date(pipeline?.updated_at ?? project.last_activity_at),
+            date: new Date(pipeline?.updatedAt ?? project.lastActivityAt),
             tooltip: "Last activity",
           },
         ]}
@@ -146,7 +125,7 @@ export function ProjectList({
                 <Action.OpenInBrowser
                   title="Open Latest Pipeline"
                   icon={Icon.Bolt}
-                  url={pipeline.web_url}
+                  url={links.pipeline(instance, pipeline)}
                   shortcut={{ modifiers: ["cmd"], key: "l" }}
                 />
               ) : null}
@@ -180,12 +159,12 @@ export function ProjectList({
             <ActionPanel.Section>
               <Action.CopyToClipboard
                 title="Copy Project URL"
-                content={project.web_url}
+                content={project.webUrl}
                 shortcut={Keyboard.Shortcut.Common.Copy}
               />
               <Action.CopyToClipboard
                 title="Copy SSH Clone URL"
-                content={project.ssh_url_to_repo}
+                content={project.sshUrlToRepo}
                 shortcut={{ modifiers: ["cmd", "shift"], key: "." }}
               />
             </ActionPanel.Section>

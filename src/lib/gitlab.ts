@@ -1,8 +1,6 @@
 import { getPreferenceValues } from "@raycast/api";
 
-/** Latest-pipeline lookups are capped so a wide search can't fan out into dozens of requests. */
-export const PIPELINE_LOOKUP_LIMIT = 20;
-const PIPELINE_CONCURRENCY = 6;
+const PAGE_SIZE = 30;
 
 export interface Prefs {
   instance: string;
@@ -10,27 +8,23 @@ export interface Prefs {
   membershipOnly: boolean;
 }
 
-export interface Project {
-  id: number;
-  name: string;
-  name_with_namespace: string;
-  path_with_namespace: string;
-  web_url: string;
-  description: string | null;
-  avatar_url: string | null;
-  archived: boolean;
-  last_activity_at: string;
-  ssh_url_to_repo: string;
-  http_url_to_repo: string;
-}
-
 export interface Pipeline {
-  id: number;
+  /** Uppercase enum from GraphQL, e.g. SUCCESS, FAILED, MANUAL. */
   status: string;
   ref: string;
-  web_url: string;
-  updated_at: string;
-  source: string;
+  updatedAt: string;
+  /** Instance-relative, e.g. /b2c/casa.backend/-/pipelines/2239798 */
+  path: string;
+}
+
+export interface Project {
+  name: string;
+  fullPath: string;
+  webUrl: string;
+  archived: boolean;
+  lastActivityAt: string;
+  sshUrlToRepo: string;
+  pipeline: Pipeline | null;
 }
 
 export function prefs(): Prefs {
@@ -38,87 +32,102 @@ export function prefs(): Prefs {
   return { ...p, instance: p.instance.trim().replace(/\/+$/, "") };
 }
 
-/** Project search endpoint. Empty query -> most recently active projects. */
-export function searchUrl(
-  instance: string,
-  query: string,
-  membershipOnly: boolean,
-): string {
-  const params = new URLSearchParams({
-    per_page: "30",
-    order_by: "last_activity_at",
-    sort: "desc",
-    simple: "true",
-  });
-  const q = query.trim();
-  if (q) {
-    params.set("search", q);
-    params.set("search_namespaces", "true");
-  }
-  if (membershipOnly) params.set("membership", "true");
-  return `${instance}/api/v4/projects?${params.toString()}`;
-}
-
-/** Runs `fn` over `items` with a bounded number of requests in flight. */
-async function mapLimit<T, R>(
-  items: T[],
-  limit: number,
-  fn: (item: T) => Promise<R>,
-): Promise<R[]> {
-  const results = new Array<R>(items.length);
-  let next = 0;
-  const workers = Array.from(
-    { length: Math.min(limit, items.length) },
-    async () => {
-      for (let i = next++; i < items.length; i = next++) {
-        results[i] = await fn(items[i]);
-      }
-    },
-  );
-  await Promise.all(workers);
-  return results;
-}
-
 /**
- * Most recent pipeline per project, keyed by project id.
+ * One GraphQL request covers search and, when asked, each project's latest
+ * pipeline — the REST equivalent was 1 + N round trips.
  *
- * A project with pipelines disabled, or one the token cannot read pipelines for,
- * resolves to null rather than failing the whole batch — a single 403 should not
- * blank out every other project's status.
+ * `membership` is inlined rather than passed as a variable so the argument is
+ * absent entirely when the preference is off; passing `membership: false`
+ * is not the same as not filtering.
  */
-export async function fetchLatestPipelines(
+function buildQuery(membershipOnly: boolean): string {
+  const membership = membershipOnly ? ", membership: true" : "";
+  return `
+    query ProjectSearch($search: String, $first: Int!, $sort: String, $withPipelines: Boolean!) {
+      projects(search: $search, first: $first, sort: $sort${membership}) {
+        nodes {
+          name
+          fullPath
+          webUrl
+          archived
+          lastActivityAt
+          sshUrlToRepo
+          pipelines(first: 1) @include(if: $withPipelines) {
+            nodes { status ref updatedAt path }
+          }
+        }
+      }
+    }`;
+}
+
+interface GraphQLProjectNode {
+  name: string;
+  fullPath: string;
+  webUrl: string;
+  archived: boolean;
+  lastActivityAt: string;
+  sshUrlToRepo: string;
+  pipelines?: { nodes: Pipeline[] } | null;
+}
+
+export async function fetchProjects(
   instance: string,
   token: string,
-  projectIds: number[],
+  search: string,
+  membershipOnly: boolean,
+  withPipelines: boolean,
   signal?: AbortSignal,
-): Promise<Record<number, Pipeline | null>> {
-  const ids = projectIds.slice(0, PIPELINE_LOOKUP_LIMIT);
-
-  const entries = await mapLimit(ids, PIPELINE_CONCURRENCY, async (id) => {
-    try {
-      const res = await fetch(
-        `${instance}/api/v4/projects/${id}/pipelines?per_page=1`,
-        {
-          headers: { "PRIVATE-TOKEN": token, Accept: "application/json" },
-          signal,
-        },
-      );
-      if (!res.ok) return [id, null] as const;
-      const pipelines = (await res.json()) as Pipeline[];
-      return [id, pipelines[0] ?? null] as const;
-    } catch {
-      return [id, null] as const;
-    }
+): Promise<Project[]> {
+  const res = await fetch(`${instance}/api/graphql`, {
+    method: "POST",
+    headers: {
+      "PRIVATE-TOKEN": token,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({
+      query: buildQuery(membershipOnly),
+      variables: {
+        search: search.trim() || null,
+        first: PAGE_SIZE,
+        sort: "latest_activity_desc",
+        withPipelines,
+      },
+    }),
+    signal,
   });
 
-  return Object.fromEntries(entries);
+  if (!res.ok) {
+    throw new Error(`GitLab returned ${res.status} ${res.statusText}`);
+  }
+
+  const body = (await res.json()) as {
+    data?: { projects?: { nodes: GraphQLProjectNode[] } };
+    errors?: { message: string }[];
+  };
+
+  if (body.errors?.length) {
+    throw new Error(body.errors.map((e) => e.message).join("; "));
+  }
+
+  return (body.data?.projects?.nodes ?? []).map((node) => ({
+    name: node.name,
+    fullPath: node.fullPath,
+    webUrl: node.webUrl,
+    archived: node.archived,
+    lastActivityAt: node.lastActivityAt,
+    sshUrlToRepo: node.sshUrlToRepo,
+    pipeline: node.pipelines?.nodes?.[0] ?? null,
+  }));
 }
 
 export const links = {
-  repo: (p: Project) => p.web_url,
-  pipelines: (p: Project) => `${p.web_url}/-/pipelines`,
-  mergeRequests: (p: Project) => `${p.web_url}/-/merge_requests`,
-  issues: (p: Project) => `${p.web_url}/-/issues`,
-  branches: (p: Project) => `${p.web_url}/-/branches`,
-  jobs: (p: Project) => `${p.web_url}/-/jobs`,
+  repo: (p: Project) => p.webUrl,
+  pipelines: (p: Project) => `${p.webUrl}/-/pipelines`,
+  mergeRequests: (p: Project) => `${p.webUrl}/-/merge_requests`,
+  issues: (p: Project) => `${p.webUrl}/-/issues`,
+  branches: (p: Project) => `${p.webUrl}/-/branches`,
+  jobs: (p: Project) => `${p.webUrl}/-/jobs`,
+  pipeline: (instance: string, pipeline: Pipeline) =>
+    `${instance}${pipeline.path}`,
 };
